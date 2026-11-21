@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     pinecone_cloud: str = "aws"
     pinecone_region: str = "ap-south-1"
     pinecone_ready_timeout: int = 180
-    min_relevance: float = 0.25
+    min_relevance: float = 0.65
     hitl_enabled: bool = True
     memory_turns: int = 6
 

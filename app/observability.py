@@ -5,6 +5,7 @@ from functools import wraps
 
 log = logging.getLogger(__name__)
 
+
 def initialize():
     """Call once, before instrumented app modules are loaded."""
     from dotenv import load_dotenv
@@ -19,6 +20,8 @@ def initialize():
     except Exception:
         log.exception("Rius initialization failed; application will continue without telemetry")
 
+        #inittialize() function  loads environment variables from a .env file, checks if Rius observability is enabled,
+        #and initializes the Rius library if it is. If Rius initialization fails, it logs the exception and continues without telemetry.
 def trace(name):
     """Decorate sync/async functions; never export arguments or return values."""
     def decorate(fn):
