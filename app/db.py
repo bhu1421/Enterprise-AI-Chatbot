@@ -16,4 +16,4 @@ def connection():
 
 def audit(conn, actor, tenant, action, detail):
     conn.execute('INSERT INTO audit_events (actor,tenant_id,action,detail) VALUES (%s,%s,%s,%s)',
-                 (actor, tenant, action, json.dumps(detail)))
+                (actor, tenant, action, json.dumps(detail)))
