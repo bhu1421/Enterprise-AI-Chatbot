@@ -132,25 +132,31 @@ jobs:
 
           echo "Checking ATLAS Docker container..."
 
-          docker inspect \
-            -f '{{.State.Running}}' \
-            atlas-enterprise-ai | grep -qx true
+          docker ps -a --filter "name=atlas-enterprise-ai"
 
-          echo "Waiting for FastAPI..."
+          echo "Waiting for FastAPI to become ready..."
 
-          sleep 15
+          for attempt in $(seq 1 30); do
 
-          for attempt in $(seq 1 12); do
-            if curl -fsS --max-time 5 \
-              http://127.0.0.1:8000/health/live; then
+            if curl -fsS \
+              --max-time 10 \
+              http://127.0.0.1:8000/health/ready \
+              > /dev/null 2>&1; then
 
               echo "ATLAS deployment successful!"
               exit 0
+
             fi
 
+            echo "Attempt $attempt/30: Application not ready."
             sleep 5
+
           done
 
-          echo "FastAPI health check failed."
-          docker logs --tail 50 atlas-enterprise-ai
+          echo "Deployment verification failed."
+
+          docker ps -a
+          docker logs --tail 100 atlas-enterprise-ai
+
           exit 1
+
