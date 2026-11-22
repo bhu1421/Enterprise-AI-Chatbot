@@ -128,13 +128,23 @@ jobs:
       - name: Verify Deployment
         run: |
           set -euo pipefail
-          if ! curl --fail --silent --show-error \
-            --retry 12 --retry-delay 5 --retry-connrefused \
-            http://127.0.0.1:8000/health/ready > /dev/null; then
-            docker logs --tail 100 atlas-enterprise-ai
-            exit 1
-          fi
-          echo "ATLAS API and database readiness check passed."
 
-      - name: Clean Unused Docker Images
-        run: docker image prune -f
+          echo "Checking ATLAS application readiness..."
+
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent --show-error \
+              --max-time 5 \
+              http://127.0.0.1:8000/health/ready > /dev/null; then
+
+              echo "ATLAS deployment successful!"
+              exit 0
+            fi
+
+            echo "Health check attempt $attempt failed."
+            sleep 5
+          done
+
+          echo "ATLAS deployment verification failed."
+          docker ps -a
+          docker logs --tail 100 atlas-enterprise-ai
+          exit 1
