@@ -1,3 +1,0 @@
-Feedback - is it good bad or we can write and store it 
-login autentication needed - for now using dummy user
-NOT added doc deletion part 
