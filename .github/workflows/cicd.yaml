@@ -6,7 +6,6 @@
     environment: production
     permissions:
       contents: read
-
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -41,7 +40,6 @@
     runs-on: [self-hosted, linux, x64, atlas-ec2]
     environment: production
     permissions: {}
-
     steps:
       - name: Check EC2 prerequisites
         run: |
@@ -61,12 +59,10 @@
           set -euo pipefail
           test -n "$AWS_REGION"
           test -n "$ECR_REPOSITORY"
-
           ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
           REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
           IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
           echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
-
           aws ecr get-login-password --region "$AWS_REGION" | \
             docker login --username AWS --password-stdin "$REGISTRY"
 
