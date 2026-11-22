@@ -3,7 +3,8 @@ from functools import lru_cache
 import boto3
 from app.config import settings
 from app.observability import trace
-from ollama import chat
+import os
+from groq import Groq
 from sentence_transformers import SentenceTransformer
 
 
@@ -21,6 +22,16 @@ def client(service):
     return boto3.client(service, **options)
 
 
+@lru_cache(maxsize=1)
+def get_groq_client():
+    s = settings()
+
+    if not s.groq_api_key:
+        raise ValueError("GROQ_API_KEY is missing")
+
+    return Groq(api_key=s.groq_api_key)
+
+
 
 @lru_cache(maxsize=1)
 def get_embedding_model():
@@ -33,6 +44,7 @@ def embed(text):
         text,
         normalize_embeddings=True
     ).tolist()
+
 
 
 @trace("answer")
@@ -55,20 +67,23 @@ def answer(question, evidence, history=None):
         f'USER QUESTION:\n{question}'
     )
 
-    resp = chat(
-        model="qwen2.5-coder:7b",
+    resp = get_groq_client().chat.completions.create(
+        model=settings().groq_model,
         messages=[
-            {"role": "system", "content": system},
-            {"role": "user", "content": prompt}
+            {
+                "role": "system",
+                "content": system
+            },
+            {
+                "role": "user",
+                "content": prompt
+            }
         ],
-        options={
-            "temperature": 0.1,
-            "num_predict": 750
-        }
+        temperature=0.1,
+        max_completion_tokens=1500
     )
 
-    return resp.message.content or ""
-
+    return resp.choices[0].message.content or ""
 
 
 

@@ -114,12 +114,11 @@ jobs:
       - name: Start ATLAS Container
         run: |
           set -euo pipefail
+
           docker run -d \
             --name atlas-enterprise-ai \
             --restart unless-stopped \
             --env-file /opt/atlas/.env \
-            --add-host host.docker.internal:host-gateway \
-            -e OLLAMA_HOST=http://host.docker.internal:11434 \
             -e HF_HOME=/home/atlas/.cache/huggingface \
             --mount type=bind,src=/opt/atlas/hf-cache,dst=/home/atlas/.cache/huggingface \
             -p 8000:8000 \
