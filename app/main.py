@@ -1,4 +1,5 @@
 import re
+import logging
 import uuid
 from pathlib import Path
 from fastapi import FastAPI, Depends, HTTPException, Request
@@ -24,6 +25,7 @@ BASE=Path(__file__).resolve().parent
 app=FastAPI(title='Atlas Enterprise RAG',docs_url='/api/docs')
 app.mount('/static',StaticFiles(directory=BASE/'static'),name='static')
 templates=Jinja2Templates(directory=BASE/'templates')
+log=logging.getLogger(__name__)
 
 
 
@@ -68,18 +70,23 @@ def create_upload(body:Upload,p:Principal=Depends(principal)):
     suffix=Path(body.filename).suffix.lower()
     if suffix not in {'.pdf','.docx','.txt','.md'}:
         raise HTTPException(400,'Allowed types: PDF, DOCX, TXT, MD')
+    if not settings().s3_bucket:
+        raise HTTPException(503,'Document storage is not configured on this server (S3_BUCKET is missing).')
     doc_id=str(uuid.uuid4())
     key=f'tenants/{p.tenant}/incoming/{doc_id}/v1{suffix}'
+    try:
+        url=client('s3').generate_presigned_url('put_object',Params={'Bucket':settings().s3_bucket,
+            'Key':key,'ContentType':'application/octet-stream'},ExpiresIn=300)
+    except Exception as exc:
+        log.exception('Could not create a presigned document upload URL')
+        raise HTTPException(503,'Document storage credentials or configuration are unavailable.') from exc
     with connection() as conn:
         conn.execute('''INSERT INTO documents(id,tenant_id,title,owner_sub,allowed_groups,s3_key,status,current_version)
                         VALUES (%s,%s,%s,%s,%s,%s,'pending',1)''',
                         (doc_id,p.tenant,body.filename,p.subject,["workspace"],key))
         audit(conn,p.subject,p.tenant,'upload_requested',{'document_id':doc_id})
     # Browser PUTs to S3; a separate completion request triggers synchronous ingestion.
-    url=client('s3').generate_presigned_url('put_object',Params={'Bucket':settings().s3_bucket,
-        'Key':key,'ContentType':'application/octet-stream'},ExpiresIn=300)
     return {'document_id':doc_id,'upload_url':url,'headers':{'Content-Type':'application/octet-stream'}}
-
 
 
 class CompleteUpload(BaseModel):
@@ -114,6 +121,10 @@ def documents(p:Principal=Depends(principal)):
 
 @app.post('/api/chat')
 def ask(body:Ask,p:Principal=Depends(principal)):
+    if not settings().groq_api_key:
+        raise HTTPException(503,'Chat is not configured on this server (GROQ_API_KEY is missing).')
+    if not settings().pinecone_api_key or not settings().pinecone_index_name:
+        raise HTTPException(503,'Document search is not configured on this server (Pinecone settings are missing).')
     reason=classify_input(body.question)
     if reason:
         with connection() as conn:
@@ -125,9 +136,13 @@ def ask(body:Ask,p:Principal=Depends(principal)):
             audit(conn,p.subject,p.tenant,'approval_requested',{'id':str(row['id'])})
         return {'answer':'This request requires administrator approval before any action. Open the Approvals tab to review it.','sources':[],'status':'pending_approval','approval_id':str(row['id'])}
     conversation_id=body.conversation_id or uuid.uuid4()
-    prior=history(p.tenant,conversation_id)
-    result=chat(p,body.question,prior)
-    save_turn(p.tenant,conversation_id,body.question,result['answer'])
+    try:
+        prior=history(p.tenant,conversation_id)
+        result=chat(p,body.question,prior)
+        save_turn(p.tenant,conversation_id,body.question,result['answer'])
+    except Exception as exc:
+        log.exception('Chat request failed')
+        raise HTTPException(502,'Chat backend failed. Check the application logs for the failing dependency.') from exc
     if result.get('answer')=='The response was blocked by the sensitive-data output guardrail.':
         with connection() as conn:
             audit(conn,p.subject,p.tenant,'guardrail_output_blocked',{'conversation_id':str(conversation_id)})

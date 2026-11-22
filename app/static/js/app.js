@@ -30,13 +30,13 @@ const api = async (path, options = {}) => {
             ...(options.headers || {})
         }
     });
-
-    const data = await res.json().catch(() => ({}));
-
+    const raw = await res.text();
+    let data = {};
+    try { data = raw ? JSON.parse(raw) : {}; } catch (_) { /* show proxy/server text below */ }
     if (!res.ok) {
-        throw Error(data.detail || 'Request failed');
+        const bodyMessage = data.detail || data.message || raw.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+        throw Error(`HTTP ${res.status}${bodyMessage ? `: ${bodyMessage.slice(0, 220)}` : ` ${res.statusText}`}`);
     }
-
     return data;
 };
 
@@ -267,48 +267,50 @@ async function loadMetrics() {
 // DOCUMENT UPLOAD
 $('uploadForm').onsubmit = async e => {
     e.preventDefault();
-
     const f = $('file').files[0];
     if (!f) return;
-
     if (f.size > 10485760) {
         toast('Maximum file size is 10 MB');
         return;
     }
 
+    let stage = 'Request an upload URL';
+    const submit = e.currentTarget.querySelector('button[type="submit"]');
+    submit.disabled = true;
     try {
         const r = await api('/api/documents/uploads', {
             method: 'POST',
-            body: JSON.stringify({
-                filename: f.name
-            })
+            body: JSON.stringify({ filename: f.name })
         });
 
+        stage = 'Upload file to S3';
         const up = await fetch(r.upload_url, {
             method: 'PUT',
             headers: r.headers,
             body: f
         });
-
         if (!up.ok) {
-            throw Error('S3 upload failed');
+            const body = await up.text();
+            throw Error(`S3 returned HTTP ${up.status}${body ? `: ${body.slice(0, 180)}` : ''}`);
         }
 
-        toast('Uploaded to S3. Processing document now...');
-
+        stage = 'Process and index document';
+        toast('Uploaded. Processing the document...');
         await api('/api/documents/complete', {
             method: 'POST',
-            body: JSON.stringify({
-                document_id: r.document_id
-            })
+            body: JSON.stringify({ document_id: r.document_id })
         });
-
-        toast('Document indexed in Pinecone!');
-        loadDocs();
-
+        toast('Document indexed and ready.');
+        $('uploadForm').reset();
+        const fileLabel = document.querySelector('.file-picker');
+        if (fileLabel) fileLabel.firstChild.textContent = 'Choose a file';
+        await loadDocs();
     } catch (err) {
-        toast(err.message);
-        console.error('Upload failed:', err);
+        toast(`${stage}: ${err.message}`);
+        console.error(`${stage} failed:`, err);
+        loadDocs();
+    } finally {
+        submit.disabled = false;
     }
 };
 

@@ -2,7 +2,7 @@
 
 # Atlas Enterprise AI
 
-### Enterprise Knowledge Assistant with RAG, LangGraph, Ollama, SentenceTransformers, and AWS S3
+### Enterprise Knowledge Assistant with RAG, LangGraph, Groq, SentenceTransformers, and AWS S3
 
 **Document intelligence · Conversational memory · Guardrails · Human review · Observability · Planned CI/CD**
 
@@ -14,7 +14,7 @@
 
 ## Overview
 
-**Atlas Enterprise AI** is a full-stack, educational enterprise knowledge assistant that answers natural-language questions over uploaded organizational documents using retrieval-augmented generation (RAG). It combines a FastAPI backend, LangGraph orchestration, a locally served Ollama LLM, SentenceTransformers embeddings, Pinecone vector search, and PostgreSQL-backed conversation history with an HTML/CSS/JavaScript interface.
+**Atlas Enterprise AI** is a full-stack, educational enterprise knowledge assistant that answers natural-language questions over uploaded organizational documents using retrieval-augmented generation (RAG). It combines a FastAPI backend, LangGraph orchestration, Groq for answer generation, SentenceTransformers embeddings, Pinecone vector search, and PostgreSQL-backed conversation history with an HTML/CSS/JavaScript interface.
 
 The project demonstrates how to connect document ingestion, grounded question answering, safety checks, human-in-the-loop (HITL) review, operational auditing, and observability into one AI application. A future deployment option using **Docker, Amazon ECR, Amazon EC2, and GitHub Actions with a self-hosted runner** is outlined below; it has not yet been implemented in this repository.
 
@@ -25,7 +25,7 @@ The project demonstrates how to connect document ingestion, grounded question an
 | Capability | Description |
 | --- | --- |
 | Document ingestion | Browser uploads files directly to private Amazon S3 using presigned URLs; the backend processes and indexes them. |
-| Enterprise RAG | Retrieve relevant chunks from Pinecone and generate grounded answers using Ollama (`qwen2.5-coder:7b`). |
+| Enterprise RAG | Retrieve relevant chunks from Pinecone and generate grounded answers using Groq (`openai/gpt-oss-20b`). |
 | LangGraph workflow | Coordinate retrieval, generation, guardrail checks, and conversational context. |
 | Conversation memory | Persist chat turns in PostgreSQL and reuse recent history for follow-up questions. |
 | Guardrails | Apply deterministic input/output checks; behavior depends on the implemented rules. |
@@ -42,7 +42,7 @@ The project demonstrates how to connect document ingestion, grounded question an
 | Backend | Python, FastAPI, Uvicorn | APIs and application server |
 | Frontend | HTML, CSS, JavaScript | Browser-based user interface |
 | Orchestration | LangGraph | Stateful RAG workflow |
-| LLM | Ollama — `qwen2.5-coder:7b` | Locally served answer generation |
+| LLM | Groq - `openai/gpt-oss-20b` | Hosted answer generation |
 | Embeddings | SentenceTransformers — `BAAI/bge-m3` | Normalized document and query vectors (1,024 dimensions) |
 | Vector database | Pinecone | Semantic retrieval and document chunk indexing |
 | Object storage | Amazon S3 | Original uploaded documents |
@@ -73,7 +73,7 @@ flowchart TD
     API --> GR[LangGraph RAG + guardrails]
     GR -->|Conversation history| DB
     GR -->|Vector retrieval| PC
-    GR -->|Generate answer| OLLAMA[Ollama qwen2.5-coder:7b]
+    GR -->|Generate answer| GROQ[Groq openai/gpt-oss-20b]
     GR -->|Answer + sources| API
     API --> U
     API -->|Approvals, feedback, audit| DB
@@ -95,10 +95,10 @@ flowchart LR
     GA -->|Deployment job| RUNNER[Self-hosted GitHub runner on EC2]
     RUNNER -->|Stop old / run new container| EC2
     EC2 --> DOCKER[Docker container: FastAPI + UI]
-    DOCKER --> SERVICES[Ollama · S3 · Pinecone · PostgreSQL · Rius]
+    DOCKER --> SERVICES[Groq API | S3 | Pinecone | PostgreSQL | Rius]
 ```
 
-**Proposed deployment flow (not yet implemented):** A commit to `main` would trigger GitHub Actions. CI would run configured checks; delivery would build and push an image tagged with the Git commit SHA to ECR. A deployment job on a trusted EC2 self-hosted runner would pull that image and replace the application container. Ollama must also be installed and reachable from the deployed app (for example, as a separate service); the instance needs outbound access to S3, Pinecone, PostgreSQL, and any enabled observability service.
+**Proposed deployment flow (not yet implemented):** A commit to `main` would trigger GitHub Actions. CI would run configured checks; delivery would build and push an image tagged with the Git commit SHA to ECR. A deployment job on a trusted EC2 self-hosted runner would pull that image and replace the application container. The deployed app needs an outbound connection to the Groq API; the instance needs outbound access to S3, Pinecone, PostgreSQL, and any enabled observability service.
 
 ## Repository Structure
 
@@ -109,7 +109,7 @@ flowchart LR
 │   ├── graph.py                # LangGraph workflow
 │   ├── rag.py                  # RAG integration
 │   ├── vector.py               # Pinecone operations
-│   ├── aws.py                  # AWS S3 client, SentenceTransformer embeddings, Ollama answers
+│   ├── aws.py                  # AWS S3 client, SentenceTransformer embeddings, Groq answers
 │   ├── db.py                   # PostgreSQL access and audit
 │   ├── memory.py               # Conversation persistence
 │   ├── guardrails.py           # Input/output safety checks
@@ -136,13 +136,13 @@ flowchart LR
 ## Prerequisites
 
 - Python 3.11+ and pip (use the version compatible with your dependencies)
-- Ollama installed and running locally, with the `qwen2.5-coder:7b` model pulled
+- A Groq API key configured as `GROQ_API_KEY`
 - AWS account with access to Amazon S3
 - Docker Desktop or Docker Engine only if you add container support
 - Pinecone account and API key
 - PostgreSQL database (the project uses Render)
 - Optional GlassFlow Rius account
-- For a future AWS deployment: ECR repository, EC2 Linux instance, GitHub repository, a registered runner, and a reachable Ollama service
+- For a future AWS deployment: ECR repository, EC2 Linux instance, GitHub repository, a registered runner, and outbound access to the Groq API
 
 ## Quick Start
 
@@ -178,26 +178,21 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-### 4. Prepare Ollama and configure environment variables
+### 4. Configure Groq, embeddings, and environment variables
 
-Pull and serve the model used by `app/aws.py`:
-
-```bash
-ollama pull qwen2.5-coder:7b
-ollama serve
-```
-
-If Ollama is already running, you do not need a second `ollama serve` process. `BAAI/bge-m3` is loaded by SentenceTransformers when embeddings are first generated.
+The active chat path in `app/aws.py` uses Groq for answer generation and `BAAI/bge-m3` through SentenceTransformers for embeddings. Ollama is not called by the active application path. Set the Groq API key before starting the app; the embedding model is loaded when first needed.
 
 Copy `.env.example` to `.env`, then update the values for your environment:
 
 ```dotenv
 AWS_REGION=ap-south-1
 S3_BUCKET=your-private-document-bucket
-# Active models are configured in app/aws.py:
-# Ollama: qwen2.5-coder:7b; SentenceTransformers: BAAI/bge-m3
-# Bedrock settings in app/config.py are for the commented-out alternative, not the active pipeline.
+# Active models in app/aws.py:
+GROQ_API_KEY=your-groq-api-key
+GROQ_MODEL=openai/gpt-oss-20b
+# SentenceTransformers: BAAI/bge-m3
 EMBED_DIM=1024
+MIN_RELEVANCE=0.48
 
 PINECONE_API_KEY=your-pinecone-key
 PINECONE_INDEX_NAME=atlas-rag-index
@@ -215,7 +210,9 @@ RIUS_DISABLED=false
 RIUS_CAPTURE_CONTENT=false
 ```
 
-For local AWS S3 access, use an appropriate AWS credential provider (such as a profile or environment credentials). **On EC2, prefer an IAM instance role** and do not put long-lived AWS keys into Docker images or GitHub secrets. The active Ollama / SentenceTransformers models do not require Amazon Bedrock access.
+For local AWS S3 access, use an appropriate AWS credential provider (such as a profile or environment credentials). **On EC2, prefer an IAM instance role** and do not put long-lived AWS keys into Docker images or GitHub secrets. The role must allow the app to read and write objects in the configured bucket. The active Groq / SentenceTransformers models do not require Amazon Bedrock access.
+
+For the EC2 deployment workflow, the running container reads its runtime settings from `/opt/atlas/.env`; local `.env` values are not copied into the image. Make sure that file includes `DATABASE_URL`, `S3_BUCKET`, `PINECONE_API_KEY`, `PINECONE_INDEX_NAME`, and `GROQ_API_KEY`. The EC2 role needs the required S3 object permissions, and the S3 bucket CORS policy must allow `PUT` from the exact public HTTPS app origin.
 
 Never commit `.env` or any real secrets. The exact supported variable names are defined in `app/config.py` and `.env.example`; use those files as the source of truth.
 
@@ -258,7 +255,7 @@ For cloud deployment, replace or supplement these with your exact deployed HTTPS
 
 ## Run with Docker (planned)
 
-**Not available in the checked-in repository yet:** a `Dockerfile` must be added before the following example commands will work. For a containerized run, ensure the Ollama service is reachable from inside the container.
+**Not available in the checked-in repository yet:** a `Dockerfile` must be added before the following example commands will work. For a containerized run, ensure the Groq API key is configured in the container environment.
 
 Build the image:
 
@@ -283,7 +280,7 @@ On Linux, if using an AWS profile instead of environment credentials, provide cr
 
 1. **ECR:** Create a private repository named `atlas-enterprise-ai` (or choose your own name).
 2. **EC2:** Launch a Linux instance with Docker, AWS CLI, and a GitHub Actions self-hosted runner. Restrict network access and protect the runner.
-3. **EC2 IAM role:** Grant the permissions required to pull ECR images and access the specific S3 bucket. Ollama and SentenceTransformers run locally and do not need Bedrock permissions. Avoid permanent access keys on the instance.
+3. **EC2 IAM role:** Grant the permissions required to pull ECR images and access the specific S3 bucket. Groq is called over HTTPS and SentenceTransformers supplies the local embeddings; neither uses Bedrock. Avoid permanent access keys on the instance.
 4. **GitHub IAM role:** Configure GitHub Actions OIDC for temporary credentials, with permissions to push to the target ECR repository and a trust policy restricted to your repository/branch.
 5. **Runtime configuration:** Store the application environment securely on EC2 (for a basic demo, `/opt/atlas/.env` with restrictive permissions; prefer a managed secret store in production).
 
@@ -314,7 +311,7 @@ The deployment workflow should:
 6. Run the deployment job on the trusted EC2 runner (`runs-on: [self-hosted, linux, x64, atlas-ec2]`, if that label is registered).
 7. Pull the exact image, replace the container, and verify application health.
 
-Example commands **after** implementing the Dockerfile, runner, and Ollama connectivity:
+Example commands **after** implementing the Dockerfile, runner, and Groq API configuration:
 
 ```bash
 # IMAGE is the full image URI produced by the build job.
@@ -339,7 +336,7 @@ curl --fail http://127.0.0.1:8000/health/live
 curl --fail http://127.0.0.1:8000/health/ready
 ```
 
-The current readiness endpoint checks PostgreSQL connectivity, not Ollama, Pinecone, or S3. A successful readiness check therefore does not verify every dependency; investigate application logs as well. Use HTTPS and a reverse proxy/load balancer before opening the app to real users.
+The current readiness endpoint checks PostgreSQL connectivity, not Groq, Pinecone, or S3. A successful readiness check therefore does not verify every dependency; investigate application logs as well. Use HTTPS and a reverse proxy/load balancer before opening the app to real users.
 
 ## API Reference
 
@@ -397,7 +394,7 @@ This project intentionally prioritizes understandable implementation over produc
 | Browser upload says “Failed to fetch” | S3 CORS, correct frontend origin, presigned URL, bucket permissions |
 | `No module named app` | Run commands from the repository root using `python -m uvicorn app.main:app` |
 | Pinecone indexing fails | API key, index region, 1,024-dimension configuration, quota |
-| Ollama request fails | Ollama service running, `ollama list`, `qwen2.5-coder:7b` downloaded, model reachability |
+| Chat request fails | `GROQ_API_KEY`, Groq model access, Pinecone credentials/index, and server logs |
 | Database connection fails | Render external URL, TLS setting, credentials, network access |
 | GitHub OIDC authentication fails | IAM trust policy, repository name, branch, audience |
 | ECR pull fails on EC2 | Instance IAM role, ECR permissions, region, Docker login |
@@ -432,6 +429,6 @@ This repository contains an **Apache License 2.0** `LICENSE` file. See [LICENSE]
 
 <div align="center">
 
-**Atlas Enterprise AI** — Practical enterprise RAG engineering with Ollama, SentenceTransformers, AWS S3, Pinecone, and PostgreSQL.
+**Atlas Enterprise AI** - Practical enterprise RAG engineering with Groq, SentenceTransformers, AWS S3, Pinecone, and PostgreSQL.
 
 </div>
