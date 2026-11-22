@@ -5,6 +5,7 @@ from app.aws import embed,answer
 from app.vector import search
 from app.config import settings
 from app.guardrails import check_input,check_output
+import re
 
 
 class State(TypedDict,total=False):
@@ -24,9 +25,20 @@ def guard(s): return {'question':check_input(s['question'])}
 @trace("retrieve")
 def retrieve(s):
     p=s['principal']
-    # Include the most recent user question for short follow-ups such as 'summarize that'.
+    # Keep standalone questions intact. Only add context for follow-ups that
+    # cannot be interpreted without the preceding turn.
     prior_questions=[m['content'] for m in s.get('history',[]) if m['role']=='user']
-    query=(prior_questions[-1]+'\nFollow-up: '+s['question']) if prior_questions else s['question']
+    question=s['question'].strip()
+    word_count=len(question.split())
+    needs_context = word_count <= 6 and bool(re.search(
+        r"\b(it|that|those|they|them|there|this|these|one|ones)\b|^(what about|how about|and|also)\b",
+        question,
+        re.IGNORECASE,
+    ))
+    needs_context = needs_context or (
+        word_count <= 3 and bool(re.fullmatch(r"(why|where|when|how|what)[?.!]*", question, re.IGNORECASE))
+    )
+    query=(prior_questions[-1]+'\nFollow-up: '+question) if prior_questions and needs_context else question
 
     hits=search(p.tenant,embed(query),p.groups,p.subject)
     hits=[h for h in hits if h['score']>=settings().min_relevance]

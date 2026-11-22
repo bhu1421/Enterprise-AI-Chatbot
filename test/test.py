@@ -1,51 +1,55 @@
 
 import os
-import json
-import boto3
 from dotenv import load_dotenv
+from groq import Groq
 
 load_dotenv()
 
-client = boto3.client(
-    "bedrock-runtime",
-    region_name=os.getenv("AWS_REGION"),
-    aws_access_key_id=os.getenv("AWS_ACCESS_KEY_ID"),
-    aws_secret_access_key=os.getenv("AWS_SECRET_ACCESS_KEY"),
-)
+client = Groq(api_key=os.environ["GROQ_API_KEY"])
 
-# Test 1: Amazon Titan Embeddings
-embedding_response = client.invoke_model(
-    modelId=os.getenv("BEDROCK_EMBED_MODEL"),
-    body=json.dumps({
-        "inputText": "Hello Amazon Bedrock",
-        "dimensions": 1024,
-        "normalize": True
-    }),
-    contentType="application/json",
-    accept="application/json"
-)
+messages = [
+    {
+        "role": "system",
+        "content": "You are a helpful AI assistant."
+    }
+]
 
-embedding_data = json.loads(
-    embedding_response["body"].read()
-)
+print("Groq GPT-OSS 20B Chat")
+print("Type 'exit' to quit.\n")
 
-print("Embedding dimension:", len(embedding_data["embedding"]))
+while True:
+    user_input = input("You: ").strip()
 
-# Test 2: Amazon Nova Lite
-chat_response = client.converse(
-    modelId=os.getenv("BEDROCK_CHAT_MODEL"),
-    messages=[
-        {
-            "role": "user",
-            "content": [
-                {"text": "Explain RAG in one sentence."}
-            ]
-        }
-    ],
-    inferenceConfig={"maxTokens": 200}
-)
+    if user_input.lower() in ["exit", "quit"]:
+        print("Chat ended.")
+        break
 
-print(
-    "Nova Response:",
-    chat_response["output"]["message"]["content"][0]["text"]
-)
+    if not user_input:
+        continue
+
+    messages.append({
+        "role": "user",
+        "content": user_input
+    })
+
+    try:
+        response = client.chat.completions.create(
+            model="openai/gpt-oss-20b",
+            messages=messages,
+            temperature=0.2,
+            max_completion_tokens=2048,
+            reasoning_effort="low"
+        )
+
+        answer = response.choices[0].message.content or ""
+
+        print(f"\nAI: {answer}\n")
+
+        messages.append({
+            "role": "assistant",
+            "content": answer
+        })
+
+    except Exception as e:
+        messages.pop()
+        print(f"\nError: {e}\n")

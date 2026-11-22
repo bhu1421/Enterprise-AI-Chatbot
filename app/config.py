@@ -29,9 +29,14 @@ class Settings(BaseSettings):
     pinecone_cloud: str = "aws"
     pinecone_region: str = "ap-south-1"
     pinecone_ready_timeout: int = 180
-    min_relevance: float = 0.65
+    # BGE-M3 relevant matches in the demo workspace score around 0.50-0.61;
+    # 0.65 discarded those answers before generation.
+    min_relevance: float = 0.48
     hitl_enabled: bool = True
     memory_turns: int = 6
+
+    groq_api_key: str = ""
+    groq_model: str = "openai/gpt-oss-20b"
 
 
 @lru_cache
