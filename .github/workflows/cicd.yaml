@@ -1,80 +1,4 @@
 
-name: Atlas Enterprise AI CI/CD
-
-on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - README.md
-  workflow_dispatch:
-
-concurrency:
-  group: atlas-deployment
-  cancel-in-progress: false
-
-jobs:
-  integration:
-    name: Continuous Integration
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-
-      - name: Check Python syntax
-        run: |
-          python -m compileall -q app worker scripts
-
-  build-and-push-ecr-image:
-    name: Continuous Delivery
-    needs: integration
-    runs-on: ubuntu-latest
-    environment: production
-    permissions:
-      id-token: write
-      contents: read
-
-    outputs:
-      image: ${{ steps.build-image.outputs.image }}
-
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
-          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
-
-      - name: Login to Amazon ECR
-        id: login-ecr
-        uses: aws-actions/amazon-ecr-login@v2
-
-      - name: Build and push Docker image
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
-          IMAGE_TAG: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          IMAGE="$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG"
-
-          docker build --pull -t "$IMAGE" .
-          docker push "$IMAGE"
-
-          echo "image=$IMAGE" >> "$GITHUB_OUTPUT"
-
   continuous-deployment:
     name: Continuous Deployment
     needs: build-and-push-ecr-image
@@ -96,18 +20,29 @@ jobs:
       - name: Login to Amazon ECR using EC2 IAM role
         env:
           AWS_REGION: ${{ secrets.AWS_REGION }}
-          IMAGE: ${{ needs.build-and-push-ecr-image.outputs.image }}
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
         run: |
           set -euo pipefail
-          REGISTRY="${IMAGE%%/*}"
+
+          test -n "$AWS_REGION"
+          test -n "$ECR_REPOSITORY"
+
+          ACCOUNT_ID=$(aws sts get-caller-identity \
+            --query Account --output text)
+
+          REGISTRY="${ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com"
+
+          IMAGE="${REGISTRY}/${ECR_REPOSITORY}:${GITHUB_SHA}"
+
+          echo "IMAGE=$IMAGE" >> "$GITHUB_ENV"
 
           aws ecr get-login-password --region "$AWS_REGION" | \
             docker login --username AWS \
               --password-stdin "$REGISTRY"
 
+          echo "Amazon ECR login succeeded."
+
       - name: Pull new Docker image
-        env:
-          IMAGE: ${{ needs.build-and-push-ecr-image.outputs.image }}
         run: |
           set -euo pipefail
           docker pull "$IMAGE"
@@ -117,10 +52,9 @@ jobs:
           docker rm -f atlas-enterprise-ai || true
 
       - name: Start updated container
-        env:
-          IMAGE: ${{ needs.build-and-push-ecr-image.outputs.image }}
         run: |
           set -euo pipefail
+
           docker run -d \
             --name atlas-enterprise-ai \
             --restart unless-stopped \
@@ -135,13 +69,15 @@ jobs:
       - name: Verify application
         run: |
           set -euo pipefail
+
           if ! curl --fail --silent --show-error \
             --retry 12 --retry-delay 5 --retry-connrefused \
             http://127.0.0.1:8000/health/ready > /dev/null; then
             docker logs --tail 100 atlas-enterprise-ai
             exit 1
           fi
-          echo "ATLAS FastAPI and database readiness check passed."
+
+          echo "ATLAS application readiness check passed."
 
       - name: Clean unused Docker images
         run: |
