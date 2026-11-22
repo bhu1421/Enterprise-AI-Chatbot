@@ -18,6 +18,7 @@ $('newChat').onclick = () => {
     conversationId = null;
     sessionStorage.removeItem('atlas_conversation_id');
     $('messages').replaceChildren();
+    $('welcome').classList.remove('hidden');
     toast('Started a new conversation');
 };
 
@@ -30,7 +31,7 @@ const api = async (path, options = {}) => {
         }
     });
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
 
     if (!res.ok) {
         throw Error(data.detail || 'Request failed');
@@ -46,10 +47,10 @@ function view(name) {
     });
 
     $('heading').textContent = {
-        chat: "Ask your organization's knowledge",
-        docs: 'Document management',
-        approval: 'Approval requests',
-        admin: 'Operational overview'
+        chat: 'Knowledge chat',
+        docs: 'Documents',
+        approval: 'Approvals',
+        admin: 'Workspace metrics'
     }[name];
 
     if (name === 'docs') loadDocs();
@@ -58,12 +59,16 @@ function view(name) {
 }
 
 $('chatTab').onclick = () => view('chat');
+$('brandHome').onclick = e => { e.preventDefault(); view('chat'); };
 $('docsTab').onclick = () => view('docs');
 $('adminTab').onclick = () => view('admin');
 $('approvalTab').onclick = () => view('approval');
 $('refreshApprovals').onclick = loadApprovals;
+$('refreshDocs').onclick = loadDocs;
+$('refreshMetrics').onclick = loadMetrics;
 
 function addMessage(content, kind, sources = []) {
+    $('welcome').classList.add('hidden');
     const el = document.createElement('div');
     el.className = 'message ' + kind;
     el.textContent = content;
@@ -177,36 +182,83 @@ document.querySelectorAll('[data-q]').forEach(b => {
 async function loadDocs() {
     try {
         const r = await api('/api/documents');
-
-        $('docs').replaceChildren(
-            ...r.documents.map(d => {
-                const row = document.createElement('div');
-
-                row.textContent =
-                    `${d.title} — ${d.status} (v${d.current_version})`;
-
-                return row;
-            })
-        );
+        const root = $('docs');
+        root.replaceChildren();
+        if (!r.documents.length) {
+            const empty = document.createElement('div');
+            empty.className = 'empty-state';
+            empty.textContent = 'No documents yet. Upload an approved file to build your knowledge library.';
+            root.append(empty);
+            return;
+        }
+        for (const d of r.documents) {
+            const row = document.createElement('article');
+            row.className = 'document-row';
+            const icon = document.createElement('span');
+            icon.className = 'document-icon';
+            icon.textContent = (d.title.split('.').pop() || 'DOC').toUpperCase().slice(0, 3);
+            const info = document.createElement('span');
+            info.className = 'document-info';
+            const title = document.createElement('strong');
+            title.textContent = d.title;
+            const version = document.createElement('small');
+            version.textContent = `Version ${d.current_version}`;
+            info.append(title, version);
+            const status = document.createElement('span');
+            status.className = `doc-status ${String(d.status).toLowerCase()}`;
+            status.textContent = d.status;
+            row.append(icon, info, status);
+            root.append(row);
+        }
     } catch (e) {
         $('docs').textContent = e.message;
     }
 }
 
+document.querySelector('#file').addEventListener('change', e => {
+    const file = e.target.files[0];
+    const label = e.target.closest('.file-picker');
+    if (file) label.firstChild.textContent = file.name;
+});
+
 // METRICS
 async function loadMetrics() {
     try {
-        $('metrics').textContent = JSON.stringify(
-            await api('/api/admin/metrics'),
-            null,
-            2
-        );
-
-        $('guardrailMetrics').textContent = JSON.stringify(
-            await api('/api/admin/guardrails'),
-            null,
-            2
-        );
+        const [metrics, guardrails] = await Promise.all([
+            api('/api/admin/metrics'),
+            api('/api/admin/guardrails')
+        ]);
+        const renderRows = (rootId, rows, emptyText) => {
+            const root = $(rootId);
+            root.replaceChildren();
+            if (!rows.length) {
+                const empty = document.createElement('span');
+                empty.className = 'empty-state';
+                empty.textContent = emptyText;
+                root.append(empty);
+                return;
+            }
+            for (const item of rows) {
+                const row = document.createElement('div');
+                row.className = 'metric-row';
+                const label = document.createElement('span');
+                label.textContent = item.label;
+                const value = document.createElement('strong');
+                value.textContent = item.value;
+                row.append(label, value);
+                root.append(row);
+            }
+        };
+        const documentRows = metrics.documents || [];
+        const total = documentRows.reduce((sum, row) => sum + Number(row.total || 0), 0);
+        renderRows('metrics', [
+            { label: 'Total documents', value: total },
+            ...documentRows.map(row => ({ label: `${row.status} documents`, value: row.total }))
+        ], 'No documents have been uploaded yet.');
+        renderRows('guardrailMetrics', (guardrails.events || []).map(row => ({
+            label: String(row.action).replaceAll('_', ' '),
+            value: row.total
+        })), 'No guardrail events recorded.');
     } catch (e) {
         $('metrics').textContent = e.message;
     }
