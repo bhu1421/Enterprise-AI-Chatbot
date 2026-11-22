@@ -52,26 +52,23 @@ def route(s): return 'generate' if s['passages'] else 'no_evidence'
 def no_evidence(s): return {'answer':'I could not find supporting evidence in documents you are authorized to access.','status':'no_evidence'}
 
 
-
 @trace("generate")
 def generate(s):
-    @trace("generate")
-    def generate(s):
-        evidence = '\n\n'.join(
-            f'[{i+1}] {h["metadata"].get("title", "Document")}, '
-            f'page {h["metadata"].get("page", 1)}: '
-            f'{h["metadata"].get("text", "")}'
-            for i, h in enumerate(s['passages'])
-        )
-        return {
-            'answer': answer(
-                s['question'],
-                evidence,
-                s.get('history', [])
-            ),
-            'status': 'answered'
-        }
+    evidence = "\n\n".join(
+        f'[{i + 1}] {h["metadata"].get("title", "Document")}, '
+        f'page {h["metadata"].get("page", 1)}: '
+        f'{h["metadata"].get("text", "")}'
+        for i, h in enumerate(s["passages"])
+    )
 
+    return {
+        "answer": answer(
+            s["question"],
+            evidence,
+            s.get("history", [])
+        ),
+        "status": "answered"
+    }
 
 @trace("validate")
 def validate(s): return {'answer':check_output(s['answer'])}
@@ -95,7 +92,7 @@ def make_graph():
     g.add_edge('generate','validate');
     g.add_edge('validate',END);
     g.add_edge('no_evidence',END)
-    
+
     return g.compile()
 
 

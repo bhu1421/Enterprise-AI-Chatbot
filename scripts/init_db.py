@@ -18,7 +18,7 @@ REQUIRED = ('documents', 'feedback', 'audit_events', 'approvals', 'chat_messages
 
 def main():
     url = os.getenv('DATABASE_URL', '').strip()
-    if not url or 'YOUR_' in url or 'USERNAME:' in url:
+    if not url or 'your_' in url.lower() or 'username:' in url.lower():
         print('ERROR: Set a real DATABASE_URL in the project .env file.')
         return 1
     if not SCHEMA.is_file():
