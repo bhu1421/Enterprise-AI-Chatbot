@@ -182,3 +182,7 @@ jobs:
 
           exit 1
 
+      - name: Prune unused local Docker images
+        if: success()
+        run: docker image prune -af
+
