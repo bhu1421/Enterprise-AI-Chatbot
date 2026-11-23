@@ -9,6 +9,7 @@ venv/
 .env.*
 
 doubts.txt
+docs/
 
 !.env.example
 
