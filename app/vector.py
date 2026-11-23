@@ -90,6 +90,8 @@ def search(tenant, vector, groups, owner, limit=5):
             for m in result.matches]
 #acl filter is used to ensure that only documents that the user has access to are returned in the search results.
 
-def delete_document(tenant, ids):
-    if ids:
-        index().delete(ids=ids, namespace=namespace(tenant))
+def delete_document(tenant, document_id):
+    index().delete(
+        filter={'document_id': {'$eq': document_id}},
+        namespace=namespace(tenant),
+    )

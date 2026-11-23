@@ -90,6 +90,9 @@ CREATE TABLE IF NOT EXISTS approvals (
     reviewed_at timestamptz
 );
 
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS action text NOT NULL DEFAULT 'general';
+ALTER TABLE approvals ADD COLUMN IF NOT EXISTS document_id uuid;
+
 -- Index for filtering approval requests by tenant and status.
 CREATE INDEX IF NOT EXISTS approvals_tenant_idx
     ON approvals(tenant_id, status);

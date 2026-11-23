@@ -238,7 +238,25 @@ async function loadDocs() {
             const status = document.createElement('span');
             status.className = `doc-status ${String(d.status).toLowerCase()}`;
             status.textContent = d.status;
+            const remove = document.createElement('button');
+            remove.type = 'button';
+            remove.className = 'button document-delete';
+            remove.textContent = 'Request deletion';
+            remove.setAttribute('aria-label', `Request deletion of ${d.title}`);
+            remove.onclick = async () => {
+                if (!window.confirm(`Send a deletion request for "${d.title}" to Approvals?`)) return;
+                remove.disabled = true;
+                try {
+                    await api(`/api/documents/${encodeURIComponent(d.id)}/delete-request`, { method: 'POST' });
+                    toast('Deletion request sent to Approvals');
+                    await loadDocs();
+                } catch (e) {
+                    remove.disabled = false;
+                    toast(e.message);
+                }
+            };
             row.append(icon, info, status);
+            row.append(remove);
             root.append(row);
         }
     } catch (e) {
@@ -419,9 +437,10 @@ async function loadApprovals() {
                     button.onclick = async () => {
                         const decision = approve ? 'approve' : 'reject';
 
-                        if (!confirm(
-                            `Are you sure you want to ${decision} this request? This records a decision only and does not execute the requested action.`
-                        )) {
+                        const prompt = approve && a.action === 'delete_document'
+                            ? `Approve deletion of this document from S3 and Pinecone? This cannot be undone.`
+                            : `Are you sure you want to ${decision} this request?`;
+                        if (!confirm(prompt)) {
                             return;
                         }
 
@@ -436,9 +455,9 @@ async function loadApprovals() {
                                 }
                             );
 
-                            toast(
-                                `Request ${r.status}. No action executed.`
-                            );
+                            toast(r.status === 'executed'
+                                ? 'Approved: document deleted from S3 and Pinecone.'
+                                : r.message || `Request ${r.status}.`);
 
                             await loadApprovals();
 
@@ -456,8 +475,13 @@ async function loadApprovals() {
             } else {
                 const info = document.createElement('p');
 
+                const outcome = a.status === 'executed'
+                    ? 'Document deleted from S3 and Pinecone.'
+                    : a.status === 'execution_failed'
+                        ? 'Deletion failed. Check server logs and submit a new request to retry.'
+                        : a.action === 'delete_document' ? 'No deletion performed.' : 'No action executed.';
                 info.textContent =
-                    `Reviewed by ${a.reviewer || 'unknown'} · ${a.reviewed_at ? new Date(a.reviewed_at).toLocaleString() : ''} · No action executed`;
+                    `Reviewed by ${a.reviewer || 'unknown'} · ${a.reviewed_at ? new Date(a.reviewed_at).toLocaleString() : ''} · ${outcome}`;
 
                 card.append(info);
             }

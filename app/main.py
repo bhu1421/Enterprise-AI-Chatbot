@@ -12,6 +12,7 @@ from app.observability import initialize
 from app.demo_context import principal, Principal
 from app.aws import client
 from app.config import settings
+from app.vector import delete_document as delete_vectors
 from app.db import connection, audit
 from app.rag import chat
 from app.guardrails import check_input, classify_input
@@ -117,6 +118,48 @@ def documents(p:Principal=Depends(principal)):
     return {'documents':rows}
 
 
+def _delete_document_data(document_id,tenant,actor):
+    with connection() as conn:
+        row=conn.execute('''SELECT id,title,owner_sub,s3_key,status FROM documents
+            WHERE id=%s AND tenant_id=%s FOR UPDATE''',(document_id,tenant)).fetchone()
+        if not row: raise RuntimeError('Document no longer exists')
+        if row['status']=='processing':
+            raise RuntimeError('Document processing is still in progress')
+        conn.execute("UPDATE documents SET status='retired' WHERE id=%s AND tenant_id=%s",
+                     (document_id,tenant))
+
+    delete_vectors(tenant,str(document_id))
+    client('s3').delete_object(Bucket=settings().s3_bucket,Key=row['s3_key'])
+
+    with connection() as conn:
+        conn.execute('DELETE FROM documents WHERE id=%s AND tenant_id=%s',(document_id,tenant))
+        audit(conn,actor,tenant,'document_deleted',{'document_id':str(document_id)})
+
+
+@app.post('/api/documents/{document_id}/delete-request')
+def request_document_deletion(document_id:uuid.UUID,p:Principal=Depends(principal)):
+    with connection() as conn:
+        doc=conn.execute('''SELECT id,title,owner_sub,status FROM documents
+            WHERE id=%s AND tenant_id=%s FOR UPDATE''',(document_id,p.tenant)).fetchone()
+        if not doc: raise HTTPException(404,'Document not found')
+        if not p.admin and doc['owner_sub']!=p.subject:
+            raise HTTPException(403,'Only the document owner or an administrator can request deletion')
+        if doc['status']=='processing':
+            raise HTTPException(409,'Wait for document processing to finish before requesting deletion')
+        existing=conn.execute('''SELECT id FROM approvals WHERE tenant_id=%s AND action='delete_document'
+            AND document_id=%s AND status='pending' ORDER BY created_at DESC LIMIT 1''',
+            (p.tenant,document_id)).fetchone()
+        if existing:
+            return {'approval_id':str(existing['id']),'status':'pending'}
+        approval=conn.execute('''INSERT INTO approvals
+            (tenant_id,requester,question,action,document_id,status)
+            VALUES (%s,%s,%s,'delete_document',%s,'pending') RETURNING id''',
+            (p.tenant,p.subject,f'Delete "{doc["title"]}" from S3 and Pinecone',document_id)).fetchone()
+        audit(conn,p.subject,p.tenant,'document_deletion_requested',
+              {'document_id':str(document_id),'approval_id':str(approval['id'])})
+    return {'approval_id':str(approval['id']),'status':'pending'}
+
+
 
 
 @app.post('/api/chat')
@@ -178,18 +221,40 @@ class ApprovalDecision(BaseModel):
 def list_approvals(p:Principal=Depends(principal)):
     if not p.admin: raise HTTPException(403,'Admin only')
     with connection() as conn:
-        rows=conn.execute("SELECT id,requester,question,status,reviewer,created_at,reviewed_at FROM approvals WHERE tenant_id=%s ORDER BY created_at DESC LIMIT 100",(p.tenant,)).fetchall()
+        rows=conn.execute("SELECT id,requester,question,action,document_id,status,reviewer,created_at,reviewed_at FROM approvals WHERE tenant_id=%s ORDER BY created_at DESC LIMIT 100",(p.tenant,)).fetchall()
     return {'approvals':rows}
 
 @app.post('/api/approvals/{approval_id}/decision')
 def decide(approval_id:uuid.UUID,body:ApprovalDecision,p:Principal=Depends(principal)):
     if not p.admin: raise HTTPException(403,'Admin only')
     with connection() as conn:
-        row=conn.execute("UPDATE approvals SET status=%s,reviewer=%s,reviewed_at=now() WHERE id=%s AND tenant_id=%s AND status='pending' RETURNING id",('approved' if body.approve else 'rejected',p.subject,approval_id,p.tenant)).fetchone()
+        row=conn.execute("SELECT id,action,document_id FROM approvals WHERE id=%s AND tenant_id=%s AND status='pending' FOR UPDATE",(approval_id,p.tenant)).fetchone()
         if not row: raise HTTPException(404,'Pending approval not found')
+        decision='approved' if body.approve else 'rejected'
+        conn.execute('UPDATE approvals SET status=%s,reviewer=%s,reviewed_at=now() WHERE id=%s',
+                     (decision,p.subject,approval_id))
         audit(conn,p.subject,p.tenant,'approval_decided',{'id':str(approval_id),'approved':body.approve})
-    # Approval is a decision record only; it never automatically executes a destructive action.
-    return {'status':'approved' if body.approve else 'rejected','executed':False}
+    if not body.approve:
+        return {'status':'rejected','executed':False}
+    if row['action']!='delete_document' or not row['document_id']:
+        return {'status':'approved','executed':False}
+    try:
+        _delete_document_data(row['document_id'],p.tenant,p.subject)
+    except Exception as exc:
+        log.exception('Approved document deletion failed for approval %s',approval_id)
+        with connection() as conn:
+            conn.execute("UPDATE approvals SET status='execution_failed' WHERE id=%s AND tenant_id=%s",
+                         (approval_id,p.tenant))
+            audit(conn,p.subject,p.tenant,'document_deletion_failed',
+                  {'document_id':str(row['document_id']),'approval_id':str(approval_id)})
+        return {'status':'execution_failed','executed':False,
+                'message':'Deletion failed. Check storage credentials and retry with a new approval.'}
+    with connection() as conn:
+        conn.execute("UPDATE approvals SET status='executed' WHERE id=%s AND tenant_id=%s",
+                     (approval_id,p.tenant))
+        audit(conn,p.subject,p.tenant,'document_deletion_executed',
+              {'document_id':str(row['document_id']),'approval_id':str(approval_id)})
+    return {'status':'executed','executed':True}
 
 @app.get('/api/admin/guardrails')
 def guardrail_metrics(p:Principal=Depends(principal)):

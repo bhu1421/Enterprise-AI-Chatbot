@@ -117,6 +117,8 @@ button { cursor: pointer; }
 .document-info { min-width: 0; flex: 1; }
 .document-info strong { display: block; overflow: hidden; color: #46534a; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
 .document-info small { display: block; margin-top: 4px; color: #96a098; font-size: 9px; }
+.document-delete { flex: 0 0 auto; padding: 6px 9px; color: #e9aaaa; border-color: #503636; background: #402b2b; }
+.document-delete:hover { color: #ffd0d0; border-color: #754848; background: #4b3030; }
 .doc-status { display: inline-flex; align-items: center; gap: 5px; padding: 5px 8px; border-radius: 20px; color: #637068; background: #f0f3f0; font-size: 9px; text-transform: capitalize; }
 .doc-status.ready { color: #34704f; background: #eaf5ed; }
 .doc-status.failed { color: #a64e4e; background: #fbefef; }
