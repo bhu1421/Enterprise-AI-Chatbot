@@ -1,14 +1,14 @@
 :root {
-  color-scheme: light;
-  --ink: #1e2a25;
-  --muted: #748078;
-  --line: #e5eae5;
-  --surface: #ffffff;
-  --canvas: #f4f6f2;
-  --green: #237b60;
-  --green-dark: #185d48;
-  --green-pale: #eaf4ee;
-  --sidebar: #fbfcfa;
+  color-scheme: dark;
+  --ink: #e5ebe6;
+  --muted: #a1ada4;
+  --line: #303a34;
+  --surface: #202823;
+  --canvas: #171d19;
+  --green: #55aa83;
+  --green-dark: #79c49d;
+  --green-pale: #263b30;
+  --sidebar: #1b221e;
   font-family: "Segoe UI", "Aptos", Arial, sans-serif;
   color: var(--ink);
   background: var(--canvas);
@@ -147,12 +147,55 @@ button { cursor: pointer; }
 button:disabled { opacity: .55; cursor: not-allowed; }
 :focus-visible { outline: 3px solid #79b994; outline-offset: 2px; }
 
+.feedback-form { display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 7px; margin-top: 12px; }
+.feedback-form button { margin-top: 0; padding: 6px 9px; border: 1px solid #39463d; border-radius: 7px; color: #c6d1c9; background: #202823; font-size: 10px; }
+.feedback-form button.selected { border-color: #4f8d68; color: #b9e7cb; background: #263b30; }
+.feedback-form textarea { min-width: 100px; min-height: 32px; max-height: 90px; resize: vertical; padding: 7px 8px; border: 1px solid #39463d; border-radius: 7px; color: var(--ink); background: #1b221e; font: inherit; font-size: 10px; }
+.feedback-status { grid-column: 1 / -1; color: #a9dfbc; font-size: 10px; }
+
+/* Dimmed workspace surfaces for comfortable use in low light. */
+.workspace-switcher,.status-pill,.suggestions button,.sources details,.composer,
+.button:not(.button-primary),.file-picker,.approval-card,.approval-actions button,.content-card,
+.chat-card { color: var(--ink); background-color: var(--surface); }
+.welcome h1,.page-heading h1 { color: #e6eee8; }
+.workspace-avatar,.user-avatar,.upload-icon,.welcome-icon { color: #9ad4b3; background: #283b30; }
+.nav { color: #b1bcb4; }
+.nav:hover { color: var(--ink); background: #27312b; }
+.nav.active { color: #a8dfbf; background: #263b30; }
+.nav-label,.eyebrow,.metric-label { color: #a3b0a7; }
+.breadcrumb strong,.document-info strong,.approval-header strong,.metric-row strong { color: #dce5de; }
+.message { color: #d0d9d2; background: #252e28; border-color: #354139; }
+.message.user { color: #c5e8d1; background: #263a2e; border-color: #395543; }
+.suggestions button,.button,.file-picker,.approval-actions button { border-color: #39463d; }
+.suggestions button:hover,.button:hover { color: #b9e7cb; background: #29372e; }
+.sources details { border-color: #39463d; }
+.sources summary { color: #b9dfc5; }
+.sources p,.document-info small,.approval-card p,.empty-state,.metric-row { color: #a1ada4; }
+.security-note { border-color: #334238; background: #222d26; }
+.status-pill { border-color: #354139; color: #c2cec5; }
+.user-avatar { border-color: #3c4d42; }
+.section-heading,.document-row { border-color: #333e36; }
+.document-icon { color: #e3a08e; background: #3b2b28; }
+.doc-status { color: #bdc8c0; background: #2b342e; }
+.doc-status.ready,.approval-status.approved { color: #a9dfbc; background: #263b30; }
+.doc-status.failed,.approval-status.rejected { color: #edaaaa; background: #402b2b; }
+.doc-status.processing,.approval-status.pending { color: #e4cb91; background: #3a3427; }
+.approval-status { color: #c0cbc3; background: #2b342e; }
+.approval-actions .approve-button { color: #a9dfbc; background: #263b30; border-color: #395543; }
+.approval-actions .reject-button { color: #edaaaa; background: #402b2b; border-color: #503636; }
+#approvalSummary { color: #a1ada4; }
+#toast { color: #c4e2cd; background: #222d26; border-color: #3a4c3f; }
+
 @media (max-width: 900px) {
   .sidebar { width: 205px; flex-basis: 205px; }
   .main-area { width: calc(100% - 205px); padding-right: 22px; padding-left: 22px; }
   .upload-card { grid-template-columns: auto 1fr; }
   #uploadForm { grid-column: 2; }
   .upload-footnote { grid-column: 2; margin-top: -7px; }
+}
+@media (max-width: 650px) {
+  .feedback-form { grid-template-columns: auto auto; }
+  .feedback-form textarea { grid-column: 1 / -1; }
 }
 @media (max-width: 650px) {
   .app-shell { display: block; }

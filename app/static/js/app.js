@@ -93,22 +93,53 @@ function addMessage(content, kind, sources = []) {
 
         el.append(wrap);
 
-        const feedback = document.createElement('button');
-        feedback.textContent = '👍 Helpful';
+        const feedback = document.createElement('div');
+        feedback.className = 'feedback-form';
+        let rating = 0;
 
-        feedback.onclick = async () => {
+        const helpful = document.createElement('button');
+        helpful.type = 'button';
+        helpful.textContent = '\u{1F44D} Helpful';
+        helpful.setAttribute('aria-label', 'Thumbs up: helpful');
+        const notHelpful = document.createElement('button');
+        notHelpful.type = 'button';
+        notHelpful.textContent = '\u{1F44E} Not helpful';
+        notHelpful.setAttribute('aria-label', 'Thumbs down: not helpful');
+        [helpful, notHelpful].forEach(button => {
+            button.className = 'feedback-rating';
+            button.onclick = () => {
+                rating = button === helpful ? 1 : -1;
+                helpful.classList.toggle('selected', rating === 1);
+                notHelpful.classList.toggle('selected', rating === -1);
+            };
+        });
+
+        const note = document.createElement('textarea');
+        note.maxLength = 500;
+        note.placeholder = 'Write a review (optional)';
+        const submit = document.createElement('button');
+        submit.type = 'button';
+        submit.className = 'feedback-submit';
+        submit.textContent = 'Send feedback';
+        const status = document.createElement('span');
+        status.className = 'feedback-status';
+
+        submit.onclick = async () => {
+            submit.disabled = true;
             try {
                 await api('/api/feedback', {
                     method: 'POST',
-                    body: JSON.stringify({ rating: 1 })
+                    body: JSON.stringify({ rating, note: note.value.trim() })
                 });
-
-                toast('Feedback saved');
+                status.textContent = 'Feedback saved';
+                helpful.disabled = notHelpful.disabled = note.disabled = true;
             } catch (e) {
-                toast(e.message);
+                submit.disabled = false;
+                status.textContent = e.message;
             }
         };
 
+        feedback.append(helpful, notHelpful, note, submit, status);
         el.append(feedback);
     }
 
