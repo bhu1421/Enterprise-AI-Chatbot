@@ -67,6 +67,29 @@ jobs:
           docker push "$IMAGE"
           echo "Docker image pushed to ECR."
 
+      - name: Keep newest two ECR images
+        env:
+          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY_NAME }}
+        run: |
+          set -euo pipefail
+          command -v jq
+          mapfile -t IMAGE_DIGESTS < <(
+            aws ecr describe-images \
+              --repository-name "$ECR_REPOSITORY" \
+              --output json | jq -r '.imageDetails | sort_by(.imagePushedAt) | reverse | .[].imageDigest'
+          )
+
+          if (( ${#IMAGE_DIGESTS[@]} > 2 )); then
+            for digest in "${IMAGE_DIGESTS[@]:2}"; do
+              aws ecr batch-delete-image \
+                --repository-name "$ECR_REPOSITORY" \
+                --image-ids "imageDigest=$digest" >/dev/null
+              echo "Deleted older ECR image $digest"
+            done
+          else
+            echo "ECR already contains no more than two images."
+          fi
+
   # 3. Continuous Deployment: EC2 self-hosted runner
   continuous-deployment:
     name: Continuous Deployment
