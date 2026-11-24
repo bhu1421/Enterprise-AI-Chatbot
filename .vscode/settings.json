@@ -14,26 +14,6 @@
             "name": "Render PostgreSQL",
             "database": "atlas_ai_x2d1",
             "username": "atlas_user"
-        },
-        {
-            "pgOptions": {
-                "ssl": {
-                    "rejectUnauthorized": true
-                }
-            },
-            "ssh": "Disabled",
-            "previewLimit": 50,
-            "server": "dpg-dc02nlafngtc73aruglg-a.singapore-postgres.render.com",
-            "port": 5432,
-            "sshOptions": {
-                "port": 22
-            },
-            "driver": "PostgreSQL",
-            "name": "Render PostgreSQL 1",
-            "database": "atlas_ai_x2d1",
-            "username": "atlas_user"
         }
-    ],
-    "python-envs.defaultEnvManager": "ms-python.python:conda",
-    "python-envs.defaultPackageManager": "ms-python.python:conda"
+    ]
 }
