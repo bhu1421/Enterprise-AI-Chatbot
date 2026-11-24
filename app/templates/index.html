@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#171d19">
   <title>Atlas | Company Knowledge</title>
-  <link rel="stylesheet" href="/static/css/styles.css?v=document-approval-1">
+  <link rel="stylesheet" href="/static/css/styles.css?v=document-status-filter-1">
 </head>
 <body>
   <div class="app-shell">
@@ -68,7 +68,7 @@
       <section id="docsView" class="view page-view hidden">
         <div class="page-heading"><div><span class="eyebrow">KNOWLEDGE LIBRARY</span><h1>Your documents</h1><p>Manage the approved files Atlas can use to answer questions.</p></div></div>
         <div class="content-card upload-card"><div class="upload-icon" aria-hidden="true">↑</div><div class="upload-copy"><h2>Add a document</h2><p>PDF, DOCX, TXT, or Markdown. Maximum file size: 10 MB.</p></div><form id="uploadForm"><label class="file-picker" for="file">Choose a file<input id="file" type="file" accept=".pdf,.docx,.txt,.md" required></label><button class="button button-primary" type="submit">Upload document</button></form><p class="upload-footnote">Use approved documents for this demo workspace.</p></div>
-        <div class="content-card library-card"><div class="section-heading"><div><h2>Workspace documents</h2><p>Processing status and availability</p></div><button type="button" class="button button-quiet" id="refreshDocs">Refresh</button></div><div id="docs" class="document-list" aria-live="polite">Open Documents to load your library.</div></div>
+        <div class="content-card library-card"><div class="section-heading"><div><h2>Workspace documents</h2><p>Processing status and availability</p></div><div class="document-controls"><label class="visually-hidden" for="documentStatusFilter">Filter documents by status</label><select id="documentStatusFilter" class="status-filter"><option value="all">All statuses</option><option value="ready">Ready</option><option value="pending">Pending</option><option value="processing">Processing</option><option value="failed">Failed</option><option value="retired">Retired</option></select><button type="button" class="button button-quiet" id="refreshDocs">Refresh</button></div></div><div id="docs" class="document-list" aria-live="polite">Open Documents to load your library.</div></div>
       </section>
 
       <section id="approvalView" class="view page-view hidden">
@@ -83,6 +83,6 @@
       <div id="toast" role="status" aria-live="polite"></div>
     </main>
   </div>
-  <script src="/static/js/app.js?v=document-approval-1"></script>
+  <script src="/static/js/app.js?v=document-status-filter-1"></script>
 </body>
 </html>

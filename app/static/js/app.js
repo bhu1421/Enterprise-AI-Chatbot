@@ -215,14 +215,20 @@ async function loadDocs() {
         const r = await api('/api/documents');
         const root = $('docs');
         root.replaceChildren();
-        if (!r.documents.length) {
+        const selectedStatus = $('documentStatusFilter').value;
+        const visibleDocuments = selectedStatus === 'all'
+            ? r.documents
+            : r.documents.filter(document => String(document.status).toLowerCase() === selectedStatus);
+        if (!visibleDocuments.length) {
             const empty = document.createElement('div');
             empty.className = 'empty-state';
-            empty.textContent = 'No documents yet. Upload an approved file to build your knowledge library.';
+            empty.textContent = r.documents.length
+                ? `No ${selectedStatus} documents.`
+                : 'No documents yet. Upload an approved file to build your knowledge library.';
             root.append(empty);
             return;
         }
-        for (const d of r.documents) {
+        for (const d of visibleDocuments) {
             const row = document.createElement('article');
             row.className = 'document-row';
             const icon = document.createElement('span');
@@ -263,6 +269,8 @@ async function loadDocs() {
         $('docs').textContent = e.message;
     }
 }
+
+$('documentStatusFilter').addEventListener('change', loadDocs);
 
 document.querySelector('#file').addEventListener('change', e => {
     const file = e.target.files[0];
