@@ -1,0 +1,65 @@
+{
+  "evaluated_utc_date": "2026-11-24",
+  "model": "openai/gpt-oss-120b",
+  "embedding_model": "BAAI/bge-m3",
+  "top_k": 5,
+  "min_relevance": 0.48,
+  "data": "100 synthetic OrionVale questions, seven fictional policy PDFs",
+  "scoring_status": "retrieval metrics automatic; response correctness provisional manual rubric; faithfulness not fully verified",
+  "metrics": {
+    "dev": {
+      "questions": 70,
+      "answerable": 63,
+      "unanswerable": 7,
+      "retrieval_hits": 62,
+      "hit_at_5_percent": 98.41,
+      "macro_recall_at_5_percent": 96.83,
+      "median_end_to_end_latency_seconds": 3.928,
+      "p95_end_to_end_latency_seconds_nearest_rank": 5.587,
+      "api_request_errors": 0,
+      "appropriate_abstentions": 7,
+      "review_verdict_counts": {
+        "Pass": 66,
+        "Partial": 1,
+        "Fail": 3
+      },
+      "provisional_strict_correct_percent": 94.29
+    },
+    "test": {
+      "questions": 30,
+      "answerable": 27,
+      "unanswerable": 3,
+      "retrieval_hits": 25,
+      "hit_at_5_percent": 92.59,
+      "macro_recall_at_5_percent": 87.04,
+      "median_end_to_end_latency_seconds": 3.797,
+      "p95_end_to_end_latency_seconds_nearest_rank": 5.432,
+      "api_request_errors": 0,
+      "appropriate_abstentions": 3,
+      "review_verdict_counts": {
+        "Pass": 26,
+        "Fail": 2,
+        "Partial": 2
+      },
+      "provisional_strict_correct_percent": 86.67
+    },
+    "all": {
+      "questions": 100,
+      "answerable": 90,
+      "unanswerable": 10,
+      "retrieval_hits": 87,
+      "hit_at_5_percent": 96.67,
+      "macro_recall_at_5_percent": 93.89,
+      "median_end_to_end_latency_seconds": 3.895,
+      "p95_end_to_end_latency_seconds_nearest_rank": 5.553,
+      "api_request_errors": 0,
+      "appropriate_abstentions": 10,
+      "review_verdict_counts": {
+        "Pass": 92,
+        "Partial": 3,
+        "Fail": 5
+      },
+      "provisional_strict_correct_percent": 92.0
+    }
+  }
+}

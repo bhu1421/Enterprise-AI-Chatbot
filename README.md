@@ -84,6 +84,40 @@ flowchart TD
 
 > **Ingestion note:** In the reference implementation, upload completion can perform ingestion synchronously. For larger documents and production traffic, move ingestion to a durable asynchronous worker or job service.
 
+
+## RAG Evaluation Results
+
+Evaluated ATLAS on 100 synthetic enterprise questions using a
+70-question development set and a 30-question held-out test set.
+
+| Metric | Development | Held-out Test |
+|---|---:|---:|
+| Questions | 70 | 30 |
+| Retrieval Hit@5 | 98.41% | 92.59% |
+| Macro Recall@5 | 96.83% | 87.04% |
+| Median Response Latency | 3.93s | 3.80s |
+| API Failures | 0 | 0 |
+
+### Additional Evaluation Metrics
+
+- **Provisional Answer Correctness:** 92% (92/100)
+- **Appropriate Abstention:** 100% (10/10 unanswerable questions)
+- **Evaluation Model:** GPT-OSS-120B
+- **Embedding Model:** BAAI/bge-m3
+- **Vector Database:** Pinecone
+
+The benchmark covers factual, paraphrased, scenario-based,
+cross-document, and unanswerable questions.
+
+The answer correctness score is based on a provisional rubric-based
+review. Held-out retrieval metrics reflect the original benchmark.
+
+[View Full Evaluation Report](evaluation/EVALUATION_REPORT.md)
+
+[View Benchmark Dataset](evaluation/ATLAS_100_Question_RAG_Evaluation.csv)
+
+
+
 ### AWS CI/CD deployment architecture
 
 ```mermaid
